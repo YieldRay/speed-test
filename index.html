@@ -1,0 +1,152 @@
+<!-- 
+Create speed test (bin) file by executing:
+
+$ dd if=/dev/zero of=10.bin bs=1M count=10
+$ dd if=/dev/zero of=50.bin bs=1M count=50
+$ dd if=/dev/zero of=100.bin bs=1M count=100
+
+by.YieldRay
+ -->
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>speed test</title>
+        <link rel="stylesheet" href="https://npm.elemecdn.com/landsoul@latest" />
+        <style>
+            body {
+                max-width: 640px;
+                margin: auto;
+            }
+            @media screen and (max-width: 640px) {
+                body {
+                    margin: 0 0.5rem;
+                }
+            }
+            .card {
+                padding: 0.5rem 1rem;
+                border: 0.1rem solid rgba(0, 0, 0, 0.1);
+                margin: 0.5rem 0;
+                border-radius: 0.35rem;
+            }
+        </style>
+    </head>
+    <body>
+        <h1>speed test</h1>
+        <hr />
+
+        <article id="app">
+            <div v-for="size in sizes">
+                <speed-test :size="size" />
+            </div>
+        </article>
+
+        <script type="module">
+            import { createApp } from "https://npm.elemecdn.com/vue@3/dist/vue.esm-browser.prod.js";
+            import _prettyBytes from "https://npm.elemecdn.com/pretty-bytes@latest/index.js";
+
+            function prettyBytes(a, b) {
+                try {
+                    return _prettyBytes(a, b);
+                } catch (e) {
+                    return Infinity;
+                }
+            }
+
+            const app = createApp({
+                data() {
+                    return {
+                        sizes: [10, 50, 100],
+                    };
+                },
+            });
+
+            app.component("speed-test", {
+                props: ["size"],
+                data() {
+                    return {
+                        speed: 0,
+                        received: 0,
+                        id: undefined,
+                        ab: undefined,
+                    };
+                },
+                computed: {
+                    bytes() {
+                        return this.size * 1024 * 1024;
+                    },
+                    percentage() {
+                        return (this.received / this.bytes) * 100;
+                    },
+                    speedDisplay() {
+                        return prettyBytes(this.speed);
+                    },
+                },
+                methods: {
+                    stopFetchBin() {
+                        if (this.id) {
+                            clearInterval(this.id);
+                            this.id = undefined;
+                        }
+                        if (this.ab) {
+                            this.ab.abort();
+                            this.ab = undefined;
+                        }
+                    },
+                    async startFetchBin() {
+                        this.ab = new AbortController();
+
+                        try {
+                            const res = await fetch(`${this.size}.bin`, {
+                                signal: this.ab.signal,
+                                cache: "no-store",
+                            });
+
+                            if (!res.ok) {
+                                alert(`Fail to fetch: ${res.status} ${res.statusText}`);
+                                throw new Error(res.statusText);
+                            }
+
+                            let milliseconds = 0;
+                            this.received = 0;
+                            const getCurrentSpeed = () => this.received / (milliseconds / 1000);
+
+                            const INTERVAL = 10;
+                            this.id = setInterval(() => {
+                                milliseconds += INTERVAL;
+                                this.speed = getCurrentSpeed();
+                            }, INTERVAL);
+
+                            const reader = res.body.getReader();
+                            for (;;) {
+                                const { done, value } = await reader.read();
+                                if (done) break;
+                                this.received += value.length;
+                            }
+                            this.stopFetchBin();
+                            this.speed = getCurrentSpeed();
+                        } catch (e) {
+                            console.error(e);
+                            if (this.ab) this.ab.abort();
+                        }
+                    },
+                },
+                template: `
+                 <div class="card">
+                     <h2>{{size}}MB</h2>
+                     <a :href="size+'.bin'">Download {{size}}MB directly</a>
+                     <br />
+                     <p>
+                         <progress :value="percentage" max="100" />&nbsp;
+                         <span>speed: {{speedDisplay}}/s</span>
+                     </p>
+                     <button :disabled="this.ab" @click="startFetchBin">Start</button>&nbsp;
+                     <button :disabled="!this.ab" @click="stopFetchBin">Stop</button>
+                 </div>`,
+            });
+            app.mount("#app");
+        </script>
+    </body>
+</html>
