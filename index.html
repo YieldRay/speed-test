@@ -102,6 +102,7 @@ by.YieldRay
                             const res = await fetch(`${this.size}.bin`, {
                                 signal: this.ab.signal,
                                 cache: "no-store",
+                                "accept-encoding": "identity",
                             });
 
                             if (!res.ok) {
@@ -136,7 +137,7 @@ by.YieldRay
                 template: `
                  <div class="card">
                      <h2>{{size}}MB</h2>
-                     <a :href="size+'.bin'">Download {{size}}MB directly</a>
+                     <a :href="size+'.bin'" download>Download {{size}}MB directly</a>
                      <br />
                      <p>
                          <progress :value="percentage" max="100" />&nbsp;
